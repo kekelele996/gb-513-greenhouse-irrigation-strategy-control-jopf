@@ -12,4 +12,6 @@ var (
 	ErrControlNotRequested  = errors.New("remote valve start has not been requested")
 	ErrSelfConfirmation     = errors.New("requester cannot confirm their own remote valve start")
 	ErrExplicitConfirmation = errors.New("explicit confirmation is required for remote valve start")
+	ErrRemeasureExists      = errors.New("plan already has a remeasurement; only one is allowed")
+	ErrRemeasureBeforeEffective = errors.New("remeasure time is earlier than the plan effective time")
 )

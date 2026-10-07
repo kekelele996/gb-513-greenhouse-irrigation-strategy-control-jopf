@@ -80,6 +80,7 @@ func migrate(db *gorm.DB) error {
 		&model.GreenhouseZone{},
 		&model.SoilReading{},
 		&model.IrrigationPlan{},
+		&model.PlanRemeasure{},
 		&model.ValveExecution{},
 	)
 }
@@ -114,6 +115,10 @@ func Seed(ctx context.Context, db *gorm.DB) error {
 	}
 
 	if err := seedIrrigationPlan(ctx, db); err != nil {
+		return err
+	}
+
+	if err := seedPlanRemeasure(ctx, db); err != nil {
 		return err
 	}
 
@@ -202,8 +207,25 @@ func seedIrrigationPlan(ctx context.Context, db *gorm.DB) error {
 	return db.WithContext(ctx).Create(&items).Error
 }
 
-func seedValveExecution(ctx context.Context, db *gorm.DB) error {
+// seedPlanRemeasure attaches one demo 复测 to the approved demo plan so list,
+// detail and valve pages immediately show the derived 生效指标.
+func seedPlanRemeasure(ctx context.Context, db *gorm.DB) error {
 	var count int64
+	if err := db.WithContext(ctx).Model(&model.PlanRemeasure{}).Count(&count).Error; err != nil || count > 0 {
+		return err
+	}
+	var plan model.IrrigationPlan
+	if err := db.WithContext(ctx).Where("code = ?", "IP-002").First(&plan).Error; err != nil {
+		return nil
+	}
+	item := model.PlanRemeasure{
+		PlanID: plan.ID, Facility: plan.Facility, MeasuredAt: plan.EffectiveAt.Add(time.Hour),
+		Moisture: 31.5, MetricUnit: plan.MetricUnit, CreatedBy: "operator",
+	}
+	return db.WithContext(ctx).Create(&item).Error
+}
+
+func seedValveExecution(ctx context.Context, db *gorm.DB) error {	var count int64
 	if err := db.WithContext(ctx).Model(&model.ValveExecution{}).Count(&count).Error; err != nil || count > 0 {
 		return err
 	}

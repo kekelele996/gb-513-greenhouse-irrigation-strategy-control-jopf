@@ -33,3 +33,10 @@ type UpdateIrrigationPlan struct {
 	Evidence        string    `json:"evidence" binding:"max=2000"`
 	RelatedCode     string    `json:"relatedCode" binding:"max=64"`
 }
+
+// RemeasureIrrigationPlan is the write contract for 补登复测. Each plan accepts
+// exactly one remeasure and the measured time must not precede 生效时间.
+type RemeasureIrrigationPlan struct {
+	MeasuredAt time.Time `json:"measuredAt" binding:"required"`
+	Moisture   *float64  `json:"moisture" binding:"required,gte=0,lte=100"`
+}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { EntityPage } from '../components/EntityPage';
 import { PlanDrawer } from '../components/PlanDrawer';
+import { EffectiveMetric } from '../components/common/EffectiveMetric';
 import { ENTITY_CONFIGS } from '../types/status';
 import { useValveExecutionStore } from '../stores/valve-execution';
 import { useAuth } from '../hooks/useAuth';
@@ -28,7 +29,7 @@ export default function ValveExecutionPage() {
   };
 
   return <>
-    <EntityPage config={ENTITY_CONFIGS[3]} useStore={useValveExecutionStore} onInspect={(item) => { setSelected(item); setError(''); }} inspectLabel="控制详情" allowTransition={(item, next) => !(item.status === 'planned' && next === 'running')} />
+    <EntityPage config={ENTITY_CONFIGS[3]} useStore={useValveExecutionStore} renderMetric={(item) => <EffectiveMetric record={item} />} onInspect={(item) => { setSelected(item); setError(''); }} inspectLabel="控制详情" allowTransition={(item, next) => !(item.status === 'planned' && next === 'running')} />
     <PlanDrawer open={Boolean(selected)} record={selected} kind="execution" username={session?.username || ''} role={session?.role || 'viewer'} busy={busy} error={error} onClose={() => setSelected(null)} onRequest={(record) => execute(record, 'request')} onConfirm={(record) => execute(record, 'confirm')} />
   </>;
 }

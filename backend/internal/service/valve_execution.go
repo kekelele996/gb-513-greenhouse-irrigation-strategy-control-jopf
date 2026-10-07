@@ -26,19 +26,32 @@ type ValveExecutionService interface {
 
 type valveExecutionService struct {
 	repository repository.ValveExecutionRepository
+	remeasures repository.PlanRemeasureRepository
 	security   SecurityService
 }
 
-func NewValveExecutionService(repo repository.ValveExecutionRepository, security SecurityService) ValveExecutionService {
-	return &valveExecutionService{repository: repo, security: security}
+func NewValveExecutionService(repo repository.ValveExecutionRepository, remeasures repository.PlanRemeasureRepository, security SecurityService) ValveExecutionService {
+	return &valveExecutionService{repository: repo, remeasures: remeasures, security: security}
 }
 
 func (s *valveExecutionService) List(ctx context.Context, query dto.PageQuery) (repository.Page[model.ValveExecution], error) {
-	return s.repository.List(ctx, query)
+	page, err := s.repository.List(ctx, query)
+	if err != nil {
+		return page, err
+	}
+	return page, s.enrich(ctx, page.Items)
 }
 
 func (s *valveExecutionService) Get(ctx context.Context, id uint) (model.ValveExecution, error) {
-	return s.repository.Get(ctx, id)
+	item, err := s.repository.Get(ctx, id)
+	if err != nil {
+		return item, err
+	}
+	items := []model.ValveExecution{item}
+	if err := s.enrich(ctx, items); err != nil {
+		return model.ValveExecution{}, err
+	}
+	return items[0], nil
 }
 
 func (s *valveExecutionService) Create(ctx context.Context, input dto.CreateValveExecution, actor, requestID string) (model.ValveExecution, error) {
@@ -60,7 +73,7 @@ func (s *valveExecutionService) Create(ctx context.Context, input dto.CreateValv
 		return model.ValveExecution{}, fmt.Errorf("create 阀门执行: %w", err)
 	}
 	_ = s.security.Audit(ctx, actor, requestID, "create", "ValveExecution", item.ID, "", item.Status, "created 阀门执行")
-	return item, nil
+	return s.Get(ctx, item.ID)
 }
 
 func (s *valveExecutionService) Update(ctx context.Context, id uint, input dto.UpdateValveExecution, actor, requestID string) (model.ValveExecution, error) {
@@ -88,7 +101,7 @@ func (s *valveExecutionService) Update(ctx context.Context, id uint, input dto.U
 		return model.ValveExecution{}, fmt.Errorf("update 阀门执行: %w", err)
 	}
 	_ = s.security.Audit(ctx, actor, requestID, "update", "ValveExecution", id, current.Status, current.Status, "updated business fields")
-	return s.repository.Get(ctx, id)
+	return s.Get(ctx, id)
 }
 
 func (s *valveExecutionService) Transition(ctx context.Context, id uint, input dto.TransitionRequest, actor, requestID string) (model.ValveExecution, error) {
@@ -113,7 +126,7 @@ func (s *valveExecutionService) Transition(ctx context.Context, id uint, input d
 	if err := s.security.Audit(ctx, actor, requestID, "transition", "ValveExecution", id, before, target, input.Reason); err != nil {
 		return model.ValveExecution{}, fmt.Errorf("persist transition audit: %w", err)
 	}
-	return s.repository.Get(ctx, id)
+	return s.Get(ctx, id)
 }
 
 func (s *valveExecutionService) RequestControl(ctx context.Context, id uint, input dto.ControlConfirmationRequest, actor, requestID string) (model.ValveExecution, error) {
@@ -141,7 +154,7 @@ func (s *valveExecutionService) RequestControl(ctx context.Context, id uint, inp
 	if err := s.security.Audit(ctx, actor, requestID, "control_request", "ValveExecution", id, current.Status, current.Status, input.Reason); err != nil {
 		return model.ValveExecution{}, fmt.Errorf("persist control request audit: %w", err)
 	}
-	return s.repository.Get(ctx, id)
+	return s.Get(ctx, id)
 }
 
 func (s *valveExecutionService) ConfirmControl(ctx context.Context, id uint, input dto.ControlConfirmationRequest, actor, requestID string) (model.ValveExecution, error) {
@@ -178,7 +191,7 @@ func (s *valveExecutionService) ConfirmControl(ctx context.Context, id uint, inp
 	if err := s.security.Audit(ctx, actor, requestID, "control_confirm", "ValveExecution", id, before, current.Status, detail); err != nil {
 		return model.ValveExecution{}, fmt.Errorf("persist control confirmation audit: %w", err)
 	}
-	return s.repository.Get(ctx, id)
+	return s.Get(ctx, id)
 }
 
 func (s *valveExecutionService) Delete(ctx context.Context, id uint, actor, requestID string) error {
@@ -199,6 +212,34 @@ func (s *valveExecutionService) StatusCounts(ctx context.Context) (map[string]in
 func validateValveExecutionBusinessFields(code, name, facility, owner string) error {
 	if strings.TrimSpace(code) == "" || strings.TrimSpace(name) == "" || strings.TrimSpace(facility) == "" || strings.TrimSpace(owner) == "" {
 		return ErrInvalidInput
+	}
+	return nil
+}
+
+// enrich fills the display-only 生效指标 on 阀门执行 from the newest remeasure of
+// the record's 分区, so the valve page shows the same number as the plan pages.
+func (s *valveExecutionService) enrich(ctx context.Context, items []model.ValveExecution) error {
+	if len(items) == 0 {
+		return nil
+	}
+	facilities := make([]string, 0, len(items))
+	seen := make(map[string]bool, len(items))
+	for _, item := range items {
+		if !seen[item.Facility] {
+			seen[item.Facility] = true
+			facilities = append(facilities, item.Facility)
+		}
+	}
+	latest, err := s.remeasures.LatestByFacilities(ctx, facilities)
+	if err != nil {
+		return err
+	}
+	for i := range items {
+		value, unit, source, measuredAt := effectiveMetric(items[i].Facility, items[i].MetricValue, items[i].MetricUnit, latest)
+		items[i].EffectiveMetricValue = value
+		items[i].EffectiveMetricUnit = unit
+		items[i].EffectiveMetricSource = source
+		items[i].EffectiveMeasuredAt = measuredAt
 	}
 	return nil
 }

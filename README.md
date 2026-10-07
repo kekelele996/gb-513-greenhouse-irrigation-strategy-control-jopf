@@ -38,6 +38,7 @@ docker compose down -v --remove-orphans
 | 温室分区 | `GreenhouseZone` | `/api/zones` | active, dry, wet, locked |
 | 土壤读数 | `SoilReading` | `/api/readings` | fresh, validated, anomalous, expired |
 | 灌溉计划 | `IrrigationPlan` | `/api/plans` | draft, approved, scheduled, completed |
+| 现场复测 | `PlanRemeasure` | `/api/plans/:id/remeasure` | 每条计划限补登一次 |
 | 阀门执行 | `ValveExecution` | `/api/executions` | planned, running, succeeded, failed |
 
 - JWT 登录和 viewer/operator/reviewer/admin 四级 RBAC。
@@ -47,12 +48,23 @@ docker compose down -v --remove-orphans
 - `MoistureBadge` 在分区和读数页统一展示含水率，`PlanDrawer` 在计划和执行页复用。
 - `useAuth` 提供安全会话与演示角色切换，`usePolling` 每 30 秒刷新工作台数据。
 
+## 复测与生效指标
+
+审批时的指标（`metricValue`）钉住不动，现场复测单独存为 `PlanRemeasure` 记录；页面统一读后端推导的生效指标（`effectiveMetricValue`），过后改计划也不会让显示的数跳变。
+
+- `POST /api/plans/:id/remeasure`（operator/admin）补登复测，提交复测时间与含水率，写入 `remeasure` 审计事件。
+- 每条计划只能补登一次（数据库唯一约束兜底），重复补登返回 422。
+- 复测时间早于计划生效时间的不认，返回 422。
+- 同一分区（facility）存在多条复测时，按复测时间取最新一条作为该分区的生效指标。
+- 计划列表、计划详情（`PlanDrawer`）与阀门执行页都显示生效指标；无复测时回落为审批值并标注来源。
+
 ## RBAC 与远程启动红线
 
 | 操作 | 允许角色 |
 |---|---|
 | 查询全部业务与审计 | viewer/operator/reviewer/admin |
 | 新建、编辑业务记录 | operator/admin |
+| 补登计划复测 | operator/admin |
 | 分区、读数状态迁移 | operator/reviewer/admin |
 | 计划状态复核 | reviewer/admin |
 | 提交阀门远程启动请求 | operator/admin |

@@ -19,6 +19,12 @@ export interface DomainRecord {
   controlRequestedAt?: string | null;
   controlConfirmedBy?: string;
   controlConfirmedAt?: string | null;
+  remeasureMoisture?: number | null;
+  remeasuredAt?: string | null;
+  effectiveMetricValue?: number;
+  effectiveMetricUnit?: string;
+  effectiveMetricSource?: 'approved' | 'remeasure';
+  effectiveMeasuredAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

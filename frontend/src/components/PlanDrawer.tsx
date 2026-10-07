@@ -1,6 +1,7 @@
-import { Alert, Button, Checkbox, Descriptions, Drawer, Space, Tag } from 'antd';
-import { SafetyCertificateOutlined, SendOutlined } from '@ant-design/icons';
+import { Alert, Button, Checkbox, DatePicker, Descriptions, Drawer, InputNumber, Space, Tag } from 'antd';
+import { ExperimentOutlined, SafetyCertificateOutlined, SendOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
+import type { Dayjs } from 'dayjs';
 import type { DomainRecord } from '../types/domain';
 import { formatDate } from '../utils/format';
 import { StatusBadge } from './common/StatusBadge';
@@ -16,13 +17,25 @@ interface PlanDrawerProps {
   onClose: () => void;
   onRequest?: (record: DomainRecord) => Promise<void>;
   onConfirm?: (record: DomainRecord) => Promise<void>;
+  onRemeasure?: (record: DomainRecord, input: { measuredAt: string; moisture: number }) => Promise<void>;
 }
 
-export function PlanDrawer({ open, record, kind, username, role, busy = false, error = '', onClose, onRequest, onConfirm }: PlanDrawerProps) {
+export function PlanDrawer({ open, record, kind, username, role, busy = false, error = '', onClose, onRequest, onConfirm, onRemeasure }: PlanDrawerProps) {
   const [acknowledged, setAcknowledged] = useState(false);
-  useEffect(() => setAcknowledged(false), [open, record?.id, record?.version, kind]);
+  const [remeasureAt, setRemeasureAt] = useState<Dayjs | null>(null);
+  const [remeasureMoisture, setRemeasureMoisture] = useState<number | null>(null);
+  useEffect(() => { setAcknowledged(false); setRemeasureAt(null); setRemeasureMoisture(null); }, [open, record?.id, record?.version, kind]);
   const canRequest = kind === 'execution' && record?.status === 'planned' && !record.controlRequestedBy && ['operator', 'admin'].includes(role);
   const canConfirm = kind === 'execution' && record?.status === 'planned' && Boolean(record.controlRequestedBy) && record?.controlRequestedBy !== username && ['reviewer', 'admin'].includes(role);
+  const canRemeasure = kind === 'plan' && Boolean(onRemeasure) && !record?.remeasuredAt && ['operator', 'admin'].includes(role);
+  const effectiveValue = record?.effectiveMetricValue ?? record?.metricValue;
+  const effectiveUnit = record?.effectiveMetricUnit || record?.metricUnit;
+
+  const submitRemeasure = () => {
+    if (record && onRemeasure && remeasureAt && remeasureMoisture !== null) {
+      void onRemeasure(record, { measuredAt: remeasureAt.toISOString(), moisture: remeasureMoisture });
+    }
+  };
 
   return <Drawer title={kind === 'plan' ? '灌溉策略详情' : '计划与阀门控制'} placement="right" width="min(520px, 100vw)" open={open} onClose={onClose}>
     {record && <div className="plan-drawer">
@@ -32,9 +45,32 @@ export function PlanDrawer({ open, record, kind, username, role, busy = false, e
         <Descriptions.Item label="目标分区">{record.facility}</Descriptions.Item>
         <Descriptions.Item label="责任人">{record.owner}</Descriptions.Item>
         <Descriptions.Item label="灌溉指标">{record.metricValue} {record.metricUnit}</Descriptions.Item>
+        <Descriptions.Item label="生效指标">
+          <Space size={6}>
+            <strong>{effectiveValue} {effectiveUnit}</strong>
+            {record.effectiveMetricSource === 'remeasure'
+              ? <Tag color="cyan">复测{record.effectiveMeasuredAt ? ` · ${formatDate(record.effectiveMeasuredAt)}` : ''}</Tag>
+              : <Tag>审批值</Tag>}
+          </Space>
+        </Descriptions.Item>
         <Descriptions.Item label="生效时间">{formatDate(record.effectiveAt)}</Descriptions.Item>
         <Descriptions.Item label="证据">{record.evidence || '未附加'}</Descriptions.Item>
       </Descriptions>
+
+      {kind === 'plan' && <section className="control-approval" aria-label="现场复测补登">
+        <h3>现场复测</h3>
+        {record.remeasuredAt
+          ? <div className="approval-stage"><span>✓</span><div><strong>已补登复测</strong><p>{formatDate(record.remeasuredAt)} · 含水率 {record.remeasureMoisture} {record.metricUnit}，每条计划仅可补登一次</p></div><Tag color="cyan">复测</Tag></div>
+          : canRemeasure
+            ? <div className="approval-action">
+                <DatePicker showTime placeholder="复测时间" value={remeasureAt} onChange={(value) => setRemeasureAt(value)} style={{ width: '100%' }} />
+                <InputNumber min={0} max={100} step={0.1} placeholder="复测含水率" value={remeasureMoisture} onChange={(value) => setRemeasureMoisture(value)} style={{ width: '100%' }} addonAfter="%" />
+                <Button type="primary" icon={<ExperimentOutlined />} disabled={!remeasureAt || remeasureMoisture === null} loading={busy} onClick={submitRemeasure}>补登复测</Button>
+                <p className="remeasure-hint">复测时间早于计划生效时间将被拒绝；同一分区重复复测按时间取最新一条。</p>
+              </div>
+            : <p className="remeasure-hint">尚未补登复测，列表与阀门页暂按审批值执行。</p>}
+        {error && <Alert type="error" showIcon message={error} />}
+      </section>}
 
       {kind === 'execution' && <section className="control-approval" aria-label="远程控制双确认">
         <h3>远程控制双确认</h3>

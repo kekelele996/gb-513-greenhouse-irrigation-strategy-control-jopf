@@ -24,6 +24,7 @@ func (h *IrrigationPlanHandler) Register(group *gin.RouterGroup) {
 	resource.POST("", middleware.RequireRoles(model.RoleOperator, model.RoleAdmin), h.create)
 	resource.PUT("/:id", middleware.RequireRoles(model.RoleOperator, model.RoleAdmin), h.update)
 	resource.POST("/:id/transition", middleware.RequireRoles(model.RoleReviewer, model.RoleAdmin), h.transition)
+	resource.POST("/:id/remeasure", middleware.RequireRoles(model.RoleOperator, model.RoleAdmin), h.remeasure)
 	resource.DELETE("/:id", middleware.RequireRoles(model.RoleAdmin), h.remove)
 }
 
@@ -100,8 +101,25 @@ func (h *IrrigationPlanHandler) transition(c *gin.Context) {
 	util.OK(c, item)
 }
 
-func (h *IrrigationPlanHandler) remove(c *gin.Context) {
-	if roleFromContext(c) != "admin" {
+func (h *IrrigationPlanHandler) remeasure(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	var input dto.RemeasureIrrigationPlan
+	if err := c.ShouldBindJSON(&input); err != nil {
+		util.Fail(c, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	item, err := h.service.Remeasure(c.Request.Context(), id, input, actorFromContext(c), requestIDFromContext(c))
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	util.OK(c, item)
+}
+
+func (h *IrrigationPlanHandler) remove(c *gin.Context) {	if roleFromContext(c) != "admin" {
 		util.Fail(c, http.StatusForbidden, "forbidden", "admin role is required")
 		return
 	}

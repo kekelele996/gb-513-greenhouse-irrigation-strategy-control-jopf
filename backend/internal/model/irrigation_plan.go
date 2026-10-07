@@ -16,6 +16,15 @@ type IrrigationPlan struct {
 	EffectiveAt time.Time `json:"effectiveAt"`
 	Evidence    string    `json:"evidence" gorm:"size:2000"`
 	RelatedCode string    `json:"relatedCode" gorm:"size:64;index"`
+
+	// 复测与生效指标是读取时推导的展示字段，不落库。审批值 MetricValue 保持不动，
+	// 页面统一读 Effective*；Remeasure* 是本计划自己补登的那条复测。
+	RemeasureMoisture     *float64   `json:"remeasureMoisture,omitempty" gorm:"-"`
+	RemeasuredAt          *time.Time `json:"remeasuredAt,omitempty" gorm:"-"`
+	EffectiveMetricValue  float64    `json:"effectiveMetricValue" gorm:"-"`
+	EffectiveMetricUnit   string     `json:"effectiveMetricUnit" gorm:"-"`
+	EffectiveMetricSource string     `json:"effectiveMetricSource" gorm:"-"`
+	EffectiveMeasuredAt   *time.Time `json:"effectiveMeasuredAt,omitempty" gorm:"-"`
 }
 
 func (item *IrrigationPlan) GetBase() *BaseModel { return &item.BaseModel }

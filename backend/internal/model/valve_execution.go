@@ -20,6 +20,12 @@ type ValveExecution struct {
 	ControlRequestedAt *time.Time `json:"controlRequestedAt"`
 	ControlConfirmedBy string     `json:"controlConfirmedBy" gorm:"size:80;index"`
 	ControlConfirmedAt *time.Time `json:"controlConfirmedAt"`
+
+	// 生效指标是读取时按分区最新复测推导的展示字段，不落库；阀门页据此判断是否还排灌。
+	EffectiveMetricValue  float64    `json:"effectiveMetricValue" gorm:"-"`
+	EffectiveMetricUnit   string     `json:"effectiveMetricUnit" gorm:"-"`
+	EffectiveMetricSource string     `json:"effectiveMetricSource" gorm:"-"`
+	EffectiveMeasuredAt   *time.Time `json:"effectiveMeasuredAt,omitempty" gorm:"-"`
 }
 
 func (item *ValveExecution) GetBase() *BaseModel { return &item.BaseModel }

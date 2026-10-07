@@ -13,3 +13,6 @@ export async function transitionIrrigationPlan(id: number, status: string, expec
     method: 'POST', body: JSON.stringify({ status, expectedVersion, reason }),
   });
 }
+export async function remeasureIrrigationPlan(id: number, input: { measuredAt: string; moisture: number }) {
+  return request<DomainRecord>(`/plans/${id}/remeasure`, { method: 'POST', body: JSON.stringify(input) });
+}
