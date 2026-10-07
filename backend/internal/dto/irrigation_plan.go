@@ -33,3 +33,11 @@ type UpdateIrrigationPlan struct {
 	Evidence        string    `json:"evidence" binding:"max=2000"`
 	RelatedCode     string    `json:"relatedCode" binding:"max=64"`
 }
+
+// RegisterRemeasure 是审批后现场复测补登契约。每条计划最多补登一条，复测时间
+// 早于计划生效时间的不予采信，含水率以百分数表示。
+type RegisterRemeasure struct {
+	MeasuredAt time.Time `json:"measuredAt" binding:"required"`
+	Moisture   float64   `json:"moisture" binding:"gte=0,lte=100"`
+	Evidence   string    `json:"evidence" binding:"max=2000"`
+}

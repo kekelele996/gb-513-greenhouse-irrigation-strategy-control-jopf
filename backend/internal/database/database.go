@@ -80,6 +80,7 @@ func migrate(db *gorm.DB) error {
 		&model.GreenhouseZone{},
 		&model.SoilReading{},
 		&model.IrrigationPlan{},
+		&model.PlanRemeasure{},
 		&model.ValveExecution{},
 	)
 }
@@ -114,6 +115,10 @@ func Seed(ctx context.Context, db *gorm.DB) error {
 	}
 
 	if err := seedIrrigationPlan(ctx, db); err != nil {
+		return err
+	}
+
+	if err := seedPlanRemeasure(ctx, db); err != nil {
 		return err
 	}
 
@@ -182,6 +187,8 @@ func seedIrrigationPlan(ctx context.Context, db *gorm.DB) error {
 		return err
 	}
 	now := time.Now().UTC()
+	approved25 := 25.0
+	approved375 := 37.5
 	items := []model.IrrigationPlan{
 
 		{BaseModel: model.BaseModel{Code: "IP-001", Name: "灌溉计划示例一", Status: "draft", Version: 1,
@@ -192,14 +199,39 @@ func seedIrrigationPlan(ctx context.Context, db *gorm.DB) error {
 		{BaseModel: model.BaseModel{Code: "IP-002", Name: "灌溉计划示例二", Status: "approved", Version: 1,
 			Description: "用于启动验证和主要流程演示的灌溉计划记录"}, Facility: "温室灌溉策略执行控制区域2", Owner: "质量复核组",
 			Category: "重点", RiskLevel: "medium", MetricValue: 25.0, MetricUnit: "%",
-			EffectiveAt: now.Add(3 * time.Hour), Evidence: "已完成基础证据核对", RelatedCode: "REL-513-02"},
+			ApprovedMetricValue: &approved25,
+			EffectiveAt:         now.Add(-2 * time.Hour), Evidence: "已完成基础证据核对", RelatedCode: "REL-513-02"},
 
 		{BaseModel: model.BaseModel{Code: "IP-003", Name: "灌溉计划示例三", Status: "scheduled", Version: 1,
 			Description: "用于启动验证和主要流程演示的灌溉计划记录"}, Facility: "温室灌溉策略执行控制区域3", Owner: "安全主管组",
 			Category: "复核", RiskLevel: "high", MetricValue: 37.5, MetricUnit: "score",
-			EffectiveAt: now.Add(6 * time.Hour), Evidence: "已完成基础证据核对", RelatedCode: "REL-513-03"},
+			ApprovedMetricValue: &approved375,
+			EffectiveAt:         now.Add(6 * time.Hour), Evidence: "已完成基础证据核对", RelatedCode: "REL-513-03"},
 	}
 	return db.WithContext(ctx).Create(&items).Error
+}
+
+func seedPlanRemeasure(ctx context.Context, db *gorm.DB) error {
+	var count int64
+	if err := db.WithContext(ctx).Model(&model.PlanRemeasure{}).Count(&count).Error; err != nil || count > 0 {
+		return err
+	}
+	var plan model.IrrigationPlan
+	if err := db.WithContext(ctx).Where("code = ?", "IP-002").First(&plan).Error; err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	item := model.PlanRemeasure{
+		PlanID:       plan.ID,
+		ZoneCode:     plan.RelatedCode,
+		MeasuredAt:   now.Add(-30 * time.Minute),
+		Moisture:     31.8,
+		RegisteredBy: "operator",
+		Evidence:     "审批后现场复测，手持探针三次读数均值",
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	return db.WithContext(ctx).Create(&item).Error
 }
 
 func seedValveExecution(ctx context.Context, db *gorm.DB) error {
@@ -218,7 +250,7 @@ func seedValveExecution(ctx context.Context, db *gorm.DB) error {
 		{BaseModel: model.BaseModel{Code: "VE-002", Name: "阀门执行示例二", Status: "running", Version: 1,
 			Description: "用于启动验证和主要流程演示的阀门执行记录"}, Facility: "温室灌溉策略执行控制区域2", Owner: "质量复核组",
 			Category: "重点", RiskLevel: "medium", MetricValue: 25.0, MetricUnit: "%",
-			EffectiveAt: now.Add(3 * time.Hour), Evidence: "已完成基础证据核对", RelatedCode: "REL-513-02"},
+			EffectiveAt: now.Add(-2 * time.Hour), Evidence: "已完成基础证据核对", RelatedCode: "REL-513-02"},
 
 		{BaseModel: model.BaseModel{Code: "VE-003", Name: "阀门执行示例三", Status: "succeeded", Version: 1,
 			Description: "用于启动验证和主要流程演示的阀门执行记录"}, Facility: "温室灌溉策略执行控制区域3", Owner: "安全主管组",

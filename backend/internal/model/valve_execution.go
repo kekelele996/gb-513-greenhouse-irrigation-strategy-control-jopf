@@ -20,6 +20,13 @@ type ValveExecution struct {
 	ControlRequestedAt *time.Time `json:"controlRequestedAt"`
 	ControlConfirmedBy string     `json:"controlConfirmedBy" gorm:"size:80;index"`
 	ControlConfirmedAt *time.Time `json:"controlConfirmedAt"`
+
+	// 阀门页与计划页共用同一份“生效含水率”派生规则：取同分区在本记录生效时间
+	// 之后复测的最新一条，没有合格复测时回落到执行自身携带的指标。
+	EffectiveMoisture     *float64   `json:"effectiveMoisture" gorm:"-"`
+	EffectiveMoistureFrom string     `json:"effectiveMoistureFrom" gorm:"-"`
+	RemeasuredAt          *time.Time `json:"remeasuredAt" gorm:"-"`
+	RemeasureID           *uint      `json:"remeasureId" gorm:"-"`
 }
 
 func (item *ValveExecution) GetBase() *BaseModel { return &item.BaseModel }

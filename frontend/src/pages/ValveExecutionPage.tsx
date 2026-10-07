@@ -4,6 +4,7 @@ import { PlanDrawer } from '../components/PlanDrawer';
 import { ENTITY_CONFIGS } from '../types/status';
 import { useValveExecutionStore } from '../stores/valve-execution';
 import { useAuth } from '../hooks/useAuth';
+import { EffectiveMoisture } from '../components/common/EffectiveMoisture';
 import { confirmValveControl, requestValveControl } from '../api/valve-execution';
 import type { DomainRecord } from '../types/domain';
 
@@ -28,7 +29,7 @@ export default function ValveExecutionPage() {
   };
 
   return <>
-    <EntityPage config={ENTITY_CONFIGS[3]} useStore={useValveExecutionStore} onInspect={(item) => { setSelected(item); setError(''); }} inspectLabel="控制详情" allowTransition={(item, next) => !(item.status === 'planned' && next === 'running')} />
+    <EntityPage config={ENTITY_CONFIGS[3]} useStore={useValveExecutionStore} onInspect={(item) => { setSelected(item); setError(''); }} inspectLabel="控制详情" allowTransition={(item, next) => !(item.status === 'planned' && next === 'running')} renderMetric={(item) => <EffectiveMoisture record={item} />} />
     <PlanDrawer open={Boolean(selected)} record={selected} kind="execution" username={session?.username || ''} role={session?.role || 'viewer'} busy={busy} error={error} onClose={() => setSelected(null)} onRequest={(record) => execute(record, 'request')} onConfirm={(record) => execute(record, 'confirm')} />
   </>;
 }

@@ -12,6 +12,7 @@ export interface DomainRecord {
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
   metricValue: number;
   metricUnit: string;
+  approvedMetricValue?: number | null;
   effectiveAt: string;
   evidence: string;
   relatedCode: string;
@@ -19,8 +20,20 @@ export interface DomainRecord {
   controlRequestedAt?: string | null;
   controlConfirmedBy?: string;
   controlConfirmedAt?: string | null;
+  // 生效含水率：审批指标留底在 metricValue，复测后由后端派生到下列字段。
+  effectiveMoisture?: number | null;
+  effectiveMoistureFrom?: 'approved' | 'remeasure' | null;
+  remeasuredAt?: string | null;
+  remeasureId?: number | null;
+  remeasureRegistered?: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface RegisterRemeasureInput {
+  measuredAt: string;
+  moisture: number;
+  evidence?: string;
 }
 
 export interface PageMeta { page: number; pageSize: number; total: number }

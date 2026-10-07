@@ -26,19 +26,35 @@ type ValveExecutionService interface {
 
 type valveExecutionService struct {
 	repository repository.ValveExecutionRepository
+	remeasures repository.PlanRemeasureRepository
 	security   SecurityService
 }
 
-func NewValveExecutionService(repo repository.ValveExecutionRepository, security SecurityService) ValveExecutionService {
-	return &valveExecutionService{repository: repo, security: security}
+func NewValveExecutionService(repo repository.ValveExecutionRepository, remeasures repository.PlanRemeasureRepository, security SecurityService) ValveExecutionService {
+	return &valveExecutionService{repository: repo, remeasures: remeasures, security: security}
 }
 
 func (s *valveExecutionService) List(ctx context.Context, query dto.PageQuery) (repository.Page[model.ValveExecution], error) {
-	return s.repository.List(ctx, query)
+	page, err := s.repository.List(ctx, query)
+	if err != nil {
+		return page, err
+	}
+	if err := decorateExecutionMoisture(ctx, s.remeasures, page.Items); err != nil {
+		return page, err
+	}
+	return page, nil
 }
 
 func (s *valveExecutionService) Get(ctx context.Context, id uint) (model.ValveExecution, error) {
-	return s.repository.Get(ctx, id)
+	item, err := s.repository.Get(ctx, id)
+	if err != nil {
+		return item, err
+	}
+	items := []model.ValveExecution{item}
+	if err := decorateExecutionMoisture(ctx, s.remeasures, items); err != nil {
+		return item, err
+	}
+	return items[0], nil
 }
 
 func (s *valveExecutionService) Create(ctx context.Context, input dto.CreateValveExecution, actor, requestID string) (model.ValveExecution, error) {
@@ -88,7 +104,15 @@ func (s *valveExecutionService) Update(ctx context.Context, id uint, input dto.U
 		return model.ValveExecution{}, fmt.Errorf("update 阀门执行: %w", err)
 	}
 	_ = s.security.Audit(ctx, actor, requestID, "update", "ValveExecution", id, current.Status, current.Status, "updated business fields")
-	return s.repository.Get(ctx, id)
+	updated, err := s.repository.Get(ctx, id)
+	if err != nil {
+		return model.ValveExecution{}, err
+	}
+	items := []model.ValveExecution{updated}
+	if err := decorateExecutionMoisture(ctx, s.remeasures, items); err != nil {
+		return model.ValveExecution{}, err
+	}
+	return items[0], nil
 }
 
 func (s *valveExecutionService) Transition(ctx context.Context, id uint, input dto.TransitionRequest, actor, requestID string) (model.ValveExecution, error) {
@@ -113,7 +137,7 @@ func (s *valveExecutionService) Transition(ctx context.Context, id uint, input d
 	if err := s.security.Audit(ctx, actor, requestID, "transition", "ValveExecution", id, before, target, input.Reason); err != nil {
 		return model.ValveExecution{}, fmt.Errorf("persist transition audit: %w", err)
 	}
-	return s.repository.Get(ctx, id)
+	return s.getDecorated(ctx, id)
 }
 
 func (s *valveExecutionService) RequestControl(ctx context.Context, id uint, input dto.ControlConfirmationRequest, actor, requestID string) (model.ValveExecution, error) {
@@ -141,7 +165,7 @@ func (s *valveExecutionService) RequestControl(ctx context.Context, id uint, inp
 	if err := s.security.Audit(ctx, actor, requestID, "control_request", "ValveExecution", id, current.Status, current.Status, input.Reason); err != nil {
 		return model.ValveExecution{}, fmt.Errorf("persist control request audit: %w", err)
 	}
-	return s.repository.Get(ctx, id)
+	return s.getDecorated(ctx, id)
 }
 
 func (s *valveExecutionService) ConfirmControl(ctx context.Context, id uint, input dto.ControlConfirmationRequest, actor, requestID string) (model.ValveExecution, error) {
@@ -178,7 +202,19 @@ func (s *valveExecutionService) ConfirmControl(ctx context.Context, id uint, inp
 	if err := s.security.Audit(ctx, actor, requestID, "control_confirm", "ValveExecution", id, before, current.Status, detail); err != nil {
 		return model.ValveExecution{}, fmt.Errorf("persist control confirmation audit: %w", err)
 	}
-	return s.repository.Get(ctx, id)
+	return s.getDecorated(ctx, id)
+}
+
+func (s *valveExecutionService) getDecorated(ctx context.Context, id uint) (model.ValveExecution, error) {
+	updated, err := s.repository.Get(ctx, id)
+	if err != nil {
+		return model.ValveExecution{}, err
+	}
+	items := []model.ValveExecution{updated}
+	if err := decorateExecutionMoisture(ctx, s.remeasures, items); err != nil {
+		return model.ValveExecution{}, err
+	}
+	return items[0], nil
 }
 
 func (s *valveExecutionService) Delete(ctx context.Context, id uint, actor, requestID string) error {

@@ -47,6 +47,17 @@ docker compose down -v --remove-orphans
 - `MoistureBadge` 在分区和读数页统一展示含水率，`PlanDrawer` 在计划和执行页复用。
 - `useAuth` 提供安全会话与演示角色切换，`usePolling` 每 30 秒刷新工作台数据。
 
+## 审批后现场复测
+
+计划审批通过时含水率会钉在 `approvedMetricValue` 上，之后普通编辑计划只会改可编辑的 `metricValue`，不动审批留底。审批后允许对每条计划补登**一次**现场复测（`POST /api/plans/:id/remeasure`，operator/admin）：
+
+- 复测时间早于计划生效时间的一律不认（422）。
+- 每条计划最多补登一条，重复补登返回业务冲突（422）。
+- 复测不改审批值；列表、详情和阀门页统一读派生字段 `effectiveMoisture`。
+- 派生规则：同一分区（`relatedCode`，为空时仅本计划）内，复测时间不早于该条记录生效时间的**最新一条**复测含水率；没有合格复测则回落到审批值。阀门执行记录按自身分区与生效时间参与同一派生。
+- 补登写入 `remeasure_register` 审计事件，复测时间与含水率可在审计中追溯。
+
+
 ## RBAC 与远程启动红线
 
 | 操作 | 允许角色 |
@@ -55,6 +66,7 @@ docker compose down -v --remove-orphans
 | 新建、编辑业务记录 | operator/admin |
 | 分区、读数状态迁移 | operator/reviewer/admin |
 | 计划状态复核 | reviewer/admin |
+| 为已审批计划补登现场复测 | operator/admin |
 | 提交阀门远程启动请求 | operator/admin |
 | 独立确认并启动阀门 | reviewer/admin，且不得与请求人相同 |
 | 删除记录 | admin |
